@@ -1,0 +1,61 @@
+"""Request and response models shared by REST and MCP services."""
+
+from datetime import datetime
+import re
+
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+PERIOD_PATTERN = re.compile(
+    r"^(?:(?P<weeks>\d+)w)?(?:(?P<days>\d+)d)?(?:(?P<hours>\d+)h)?(?:(?P<minutes>\d+)m)?$",
+    re.IGNORECASE,
+)
+
+
+class TopNewsRequest(BaseModel):
+    """Filters used to fetch and rank Telegram channel posts."""
+
+    period: str = Field(
+        description="Compact duration such as 1w, 1d, 9h32m, or 1w2d3h4m."
+    )
+    exclude_mode: bool = Field(
+        default=False,
+        description="When true, use all channels except excluded_channels.",
+    )
+    excluded_channels: list[str] = Field(default_factory=list)
+    included_channels: list[str] = Field(default_factory=list)
+
+    @field_validator("period")
+    @classmethod
+    def validate_period(cls, value: str) -> str:
+        match = PERIOD_PATTERN.fullmatch(value.strip())
+        if not match or not any(int(part or 0) for part in match.groupdict().values()):
+            raise ValueError("period must be a non-zero compact duration, for example 1d or 9h32m")
+        return value.strip().lower()
+
+    @model_validator(mode="after")
+    def validate_channel_mode(self) -> "TopNewsRequest":
+        if not self.exclude_mode and not self.included_channels:
+            raise ValueError("included_channels must not be empty when exclude_mode is false")
+        return self
+
+
+class NewsPost(BaseModel):
+    text: str
+    url: str
+    created_at: datetime
+    interest_score: float
+    channel_id: int
+    channel_title: str
+    message_id: int
+
+
+class TopNewsResponse(BaseModel):
+    posts: list[NewsPost]
+    period: str
+    scanned_channels: int
+    ignored_channel_selectors: list[str] = Field(default_factory=list)
+
+
+class ErrorResponse(BaseModel):
+    error: str
+    message: str

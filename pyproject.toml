@@ -1,0 +1,25 @@
+[project]
+name = "telegram-news-mcp"
+version = "0.1.0"
+description = "Rank Telegram channel posts and expose them through MCP."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "httpx",
+    "mcp>=1.12,<2",
+    "pydantic",
+    "pydantic-settings",
+    "python-dotenv",
+    "telethon",
+    "uvicorn[standard]",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
