@@ -1,4 +1,4 @@
-"""stdio MCP server that proxies getTopNews to the internal REST API."""
+"""Streamable HTTP MCP server that proxies getTopNews to the internal REST API."""
 
 import json
 
@@ -8,7 +8,12 @@ from mcp.server.fastmcp import FastMCP
 from app.common.config import settings
 from app.common.models import TopNewsRequest
 
-mcp = FastMCP("telegram-news")
+mcp = FastMCP(
+    "telegram-news",
+    host="0.0.0.0",
+    port=8001,
+    streamable_http_path="/mcp",
+)
 
 
 async def fetch_top_news(
@@ -90,7 +95,7 @@ async def get_top_news(
 
 
 def main() -> None:
-    mcp.run(transport="stdio")
+    mcp.run(transport="streamable-http")
 
 
 if __name__ == "__main__":

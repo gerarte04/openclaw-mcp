@@ -27,17 +27,16 @@ exposes them through one REST endpoint and the MCP tool `getTopNews`.
    docker compose up -d --build
    ```
 
-The REST endpoint is internal to Docker Compose. `mcp-server` intentionally
-waits as a running container because stdio MCP requires a process attached to
-the client's stdin/stdout.
+The REST endpoint is internal to Docker Compose. `mcp-server` is a persistent
+Streamable HTTP server. Its port is bound to `127.0.0.1` only, so it is
+reachable by OpenClaw on the same host but not exposed publicly.
 
 ## OpenClaw MCP configuration
 
-Configure an stdio MCP server that executes the following command from this
-project directory:
+Configure an HTTP MCP server with this local URL:
 
 ```bash
-docker compose exec -T mcp-server python -m mcp_server.server
+http://127.0.0.1:8001/mcp
 ```
 
 Install `openclaw-skill/telegram-top-news` as an OpenClaw skill. It documents

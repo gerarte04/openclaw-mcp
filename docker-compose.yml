@@ -14,13 +14,13 @@ services:
 
   mcp-server:
     build: .
-    command: ["sleep", "infinity"]
+    command: ["python", "-m", "mcp_server.server"]
     env_file: .env
     depends_on:
       rest-server:
         condition: service_healthy
-    stdin_open: true
-    tty: false
+    ports:
+      - "127.0.0.1:8001:8001"
     restart: unless-stopped
 
   telegram-auth:
