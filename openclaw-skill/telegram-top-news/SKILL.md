@@ -22,8 +22,7 @@ The user must manually authorize Telegram before using the tool:
 ```bash
 cp .env.example .env
 # Fill TELEGRAM_API_ID and TELEGRAM_API_HASH from my.telegram.org.
-docker compose run --rm --no-deps -v "$(pwd)/data:/app/data" \
-  rest-server python scripts/authorize_telegram.py
+docker compose run --rm telegram-auth
 docker compose up -d --build
 ```
 
@@ -34,8 +33,7 @@ If the tool returns `TELEGRAM_AUTH_REQUIRED`, clearly tell the user that
 Telegram is not authorized and ask them to manually run:
 
 ```bash
-docker compose run --rm --no-deps -v "$(pwd)/data:/app/data" \
-  rest-server python scripts/authorize_telegram.py
+docker compose run --rm telegram-auth
 ```
 
 The script must be run from the project directory where `.env` is configured.

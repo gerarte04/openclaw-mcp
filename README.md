@@ -18,8 +18,7 @@ exposes them through one REST endpoint and the MCP tool `getTopNews`.
    `data/telegram.session`; neither MCP nor OpenClaw takes part in this flow.
 
    ```bash
-   docker compose run --rm --no-deps -v "$(pwd)/data:/app/data" \
-     rest-server python scripts/authorize_telegram.py
+   docker compose run --rm telegram-auth
    ```
 
 3. Start both services:

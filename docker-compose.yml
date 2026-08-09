@@ -22,3 +22,11 @@ services:
     stdin_open: true
     tty: false
     restart: unless-stopped
+
+  telegram-auth:
+    build: .
+    profiles: ["auth"]
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    entrypoint: ["python", "scripts/authorize_telegram.py"]
