@@ -1,18 +1,23 @@
 """Telegram data access built on a pre-authorized Telethon session."""
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import logging
 import re
 import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from telethon import TelegramClient
+from telethon.errors import RPCError
 from telethon.tl.types import Channel, Message
 
 from app.common.config import Settings
 from app.common.models import NewsPost, TopNewsRequest
 from rest_service.scoring import calculate_interest_score
+
+logger = logging.getLogger(__name__)
 
 
 class TelegramAuthRequiredError(RuntimeError):
@@ -82,18 +87,27 @@ class TelegramNewsRepository:
         selected, ignored = self._select_channels(channels, request)
         cutoff = datetime.now(timezone.utc) - parse_period(request.period)
         ranking: list[NewsPost] = []
+        started_at = asyncio.get_running_loop().time()
+        scanned_channels = 0
 
         for channel in selected:
-            average_views = await self._average_views_last_week(client, channel, cutoff)
-            async for message in client.iter_messages(channel.entity):
-                if message.date <= cutoff:
-                    break
-                post = self._to_news_post(message, channel, average_views)
-                if post:
-                    ranking.append(post)
+            remaining = self.config.telegram_query_timeout_seconds - (
+                asyncio.get_running_loop().time() - started_at
+            )
+            if remaining <= 0:
+                logger.warning("Telegram query deadline reached after %s channels", scanned_channels)
+                break
+            try:
+                async with asyncio.timeout(
+                    min(self.config.telegram_channel_timeout_seconds, remaining)
+                ):
+                    ranking.extend(await self._get_channel_posts(client, channel, cutoff))
+                    scanned_channels += 1
+            except (TimeoutError, RPCError) as error:
+                logger.warning("Skipping Telegram channel %s: %s", channel.id, error)
 
         ranking.sort(key=lambda post: (post.interest_score, post.created_at), reverse=True)
-        return ranking[:50], ignored, len(selected)
+        return ranking[:50], ignored, scanned_channels
 
     async def _list_channels(self, client: TelegramClient) -> list[ChannelInfo]:
         channels: list[ChannelInfo] = []
@@ -132,17 +146,28 @@ class TelegramNewsRepository:
             return [channel for channel in channels if channel.id not in excluded_ids], excluded_ignored
         return [channel for channel in channels if channel.id in included_ids], included_ignored
 
-    async def _average_views_last_week(
-        self, client: TelegramClient, channel: ChannelInfo, period_cutoff: datetime
-    ) -> float:
+    async def _get_channel_posts(
+        self, client: TelegramClient, channel: ChannelInfo, cutoff: datetime
+    ) -> list[NewsPost]:
+        """Fetch one history window to derive both channel baseline and ranked posts."""
         week_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        history_cutoff = min(cutoff, week_cutoff)
         views: list[int] = []
+        messages: list[Message] = []
         async for message in client.iter_messages(channel.entity):
-            if message.date <= week_cutoff:
+            if message.date <= history_cutoff:
                 break
-            if message.views is not None:
+            if message.date > week_cutoff and message.views is not None:
                 views.append(max(0, message.views))
-        return sum(views) / len(views) if views else 0.0
+            if message.date > cutoff:
+                messages.append(message)
+
+        average_views = sum(views) / len(views) if views else 0.0
+        return [
+            post
+            for message in messages
+            if (post := self._to_news_post(message, channel, average_views)) is not None
+        ]
 
     def _to_news_post(
         self, message: Message, channel: ChannelInfo, average_views: float
