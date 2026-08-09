@@ -14,13 +14,20 @@ def calculate_interest_score(
     created_at: datetime,
     smoothing_k: float,
     decay_lambda: float,
+    reaction_weight: float,
+    comment_weight: float,
+    share_weight: float,
     now: datetime | None = None,
 ) -> float:
-    """Calculate a stable, freshness-weighted score for one Telegram post."""
+    """Calculate a primarily engagement-weighted score for one Telegram post."""
     if average_views <= 0:
         return 0.0
 
-    engagement = max(0, reactions) + 3 * max(0, comments) + 5 * max(0, shares)
+    engagement = (
+        reaction_weight * max(0, reactions)
+        + comment_weight * max(0, comments)
+        + share_weight * max(0, shares)
+    )
     adjusted_er = engagement / (max(0, views) + smoothing_k)
     virality_log = math.log2(1 + max(0, views) / average_views)
 

@@ -189,6 +189,9 @@ class TelegramNewsRepository:
             created_at=message.date,
             smoothing_k=self.config.interest_smoothing_k,
             decay_lambda=self.config.interest_decay_lambda,
+            reaction_weight=self.config.interest_reaction_weight,
+            comment_weight=self.config.interest_comment_weight,
+            share_weight=self.config.interest_share_weight,
         )
         if channel.username:
             url = f"https://t.me/{channel.username}/{message.id}"

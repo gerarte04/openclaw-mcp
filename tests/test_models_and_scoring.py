@@ -39,6 +39,9 @@ def test_interest_score_uses_engagement_and_freshness() -> None:
         created_at=now,
         smoothing_k=100,
         decay_lambda=0.05,
+        reaction_weight=1,
+        comment_weight=6,
+        share_weight=10,
         now=now,
     )
     older_score = calculate_interest_score(
@@ -50,6 +53,9 @@ def test_interest_score_uses_engagement_and_freshness() -> None:
         created_at=now - timedelta(hours=10),
         smoothing_k=100,
         decay_lambda=0.05,
+        reaction_weight=1,
+        comment_weight=6,
+        share_weight=10,
         now=now,
     )
     assert score > 0
@@ -67,6 +73,9 @@ def test_interest_score_is_zero_without_channel_baseline() -> None:
             created_at=datetime.now(timezone.utc),
             smoothing_k=100,
             decay_lambda=0.05,
+            reaction_weight=1,
+            comment_weight=6,
+            share_weight=10,
         )
         == 0
     )

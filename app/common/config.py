@@ -12,7 +12,10 @@ class Settings(BaseSettings):
     telegram_api_hash: str
     telegram_session_file: Path = Path("data/telegram.session")
     interest_smoothing_k: float = 100.0
-    interest_decay_lambda: float = 0.05
+    interest_reaction_weight: float = 3.0
+    interest_comment_weight: float = 6.0
+    interest_share_weight: float = 10.0
+    interest_decay_lambda: float = 0.002
     rest_base_url: str = "http://rest-server:8000"
     request_timeout_seconds: float = 120.0
     telegram_channel_timeout_seconds: float = 12.0

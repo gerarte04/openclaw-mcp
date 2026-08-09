@@ -92,6 +92,11 @@ call, independently select approximately 10–15 posts:
    a concise digest item when useful.
 5. Every included item must have a clickable Markdown link whose anchor is a
    meaningful phrase, not a raw URL.
+6. Do not suppress posts solely because they concern war, death, violence,
+   disasters, illness, politics, crime, or other emotionally heavy topics.
+   Include them when they are relevant and score well, unless the user has
+   explicitly asked to avoid such topics. Summarize them neutrally and
+   factually, while following applicable safety requirements.
 
 Write in the user's language and use this shape (the wording may vary):
 
