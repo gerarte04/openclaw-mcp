@@ -25,11 +25,9 @@ class DiscoveryPlaylistError(RuntimeError):
 class SpotifyProtocol(Protocol):
     async def get_top_tracks(self, time_range: str, limit: int) -> list[SpotifyTrack]: ...
 
-    async def current_user_id(self) -> str: ...
-
     async def search_track(self, name: str, artist: str) -> list[SpotifyTrack]: ...
 
-    async def create_playlist(self, user_id: str, name: str, public: bool): ...
+    async def create_playlist(self, name: str, public: bool): ...
 
     async def add_tracks(self, playlist_id: str, uris: list[str]) -> None: ...
 
@@ -169,10 +167,7 @@ class SpotifyDiscoveryService:
                 f"target was {recommendation_target}."
             )
 
-        user_id = await self.spotify.current_user_id()
-        playlist = await self.spotify.create_playlist(
-            user_id, request.playlist_name, request.public
-        )
+        playlist = await self.spotify.create_playlist(request.playlist_name, request.public)
         await self.spotify.add_tracks(playlist.id, uris)
         return SpotifyDiscoveryPlaylistResponse(
             playlist_id=playlist.id,

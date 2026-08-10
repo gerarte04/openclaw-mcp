@@ -30,9 +30,6 @@ class FakeSpotify:
     async def get_top_tracks(self, time_range: str, limit: int) -> list[SpotifyTrack]:
         return self.tracks[time_range][:limit]
 
-    async def current_user_id(self) -> str:
-        return "user"
-
     async def search_track(self, name: str, artist: str) -> list[SpotifyTrack]:
         if name == "missing":
             return []
@@ -45,8 +42,7 @@ class FakeSpotify:
             )
         ]
 
-    async def create_playlist(self, user_id: str, name: str, public: bool) -> SpotifyPlaylist:
-        assert user_id == "user"
+    async def create_playlist(self, name: str, public: bool) -> SpotifyPlaylist:
         assert public is False
         return SpotifyPlaylist("playlist", "https://open.spotify.com/playlist/playlist")
 

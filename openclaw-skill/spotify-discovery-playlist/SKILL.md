@@ -37,8 +37,10 @@ the authorization command. Do not try to authorize Spotify through OpenClaw.
 Call `createSpotifyDiscoveryPlaylist` with:
 
 - `top_n`: source-pool size from 1 to 35. Default to `35`.
-- `playlist_name`: a concise user-facing playlist name. Default to
-  `Discovery playlist`.
+- `playlist_name`: a concise user-facing playlist name that always includes
+  the current date in ISO format (`YYYY-MM-DD`) to keep repeated playlists
+  distinct. Default to `Discovery playlist — YYYY-MM-DD`. If the user gives a
+  title, retain it and append ` — YYYY-MM-DD`.
 - `public`: defaults to `false`. Only set true when the user explicitly wants
   a public playlist.
 

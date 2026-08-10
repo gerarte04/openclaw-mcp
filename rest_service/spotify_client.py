@@ -149,13 +149,6 @@ class SpotifyClient:
         )
         return self._parse_tracks(response.json().get("items", []))
 
-    async def current_user_id(self) -> str:
-        response = await self._request("GET", "/me")
-        user_id = response.json().get("id")
-        if not isinstance(user_id, str) or not user_id:
-            raise SpotifyApiError("Spotify profile response has no user ID")
-        return user_id
-
     async def search_track(self, name: str, artist: str) -> list[SpotifyTrack]:
         response = await self._request(
             "GET",
@@ -164,12 +157,10 @@ class SpotifyClient:
         )
         return self._parse_tracks(response.json().get("tracks", {}).get("items", []))
 
-    async def create_playlist(
-        self, user_id: str, name: str, public: bool
-    ) -> SpotifyPlaylist:
+    async def create_playlist(self, name: str, public: bool) -> SpotifyPlaylist:
         response = await self._request(
             "POST",
-            f"/users/{user_id}/playlists",
+            "/me/playlists",
             json={
                 "name": name,
                 "public": public,
