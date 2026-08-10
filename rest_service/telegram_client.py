@@ -58,6 +58,8 @@ class TelegramNewsRepository:
         self.config = config
 
     async def get_top_news(self, request: TopNewsRequest) -> tuple[list[NewsPost], list[str], int]:
+        if self.config.telegram_api_id <= 0 or not self.config.telegram_api_hash:
+            raise TelegramAuthRequiredError("Telegram API credentials are not configured")
         session_file = self.config.telegram_session_file
         if not session_file.is_file():
             raise TelegramAuthRequiredError("Telegram session file is missing")

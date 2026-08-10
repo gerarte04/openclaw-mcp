@@ -3,5 +3,4 @@
 __pycache__/
 .pytest_cache/
 *.py[cod]
-data/*.session
-data/*.session-journal
+data/

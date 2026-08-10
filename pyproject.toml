@@ -1,7 +1,7 @@
 [project]
 name = "telegram-news-mcp"
 version = "0.1.0"
-description = "Rank Telegram channel posts and expose them through MCP."
+description = "Rank Telegram news and create Spotify discovery playlists through MCP."
 requires-python = ">=3.12"
 dependencies = [
     "fastapi",
@@ -15,7 +15,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio"]
+dev = ["pytest", "pytest-asyncio", "ruff"]
+
+[tool.setuptools.packages.find]
+include = ["app*", "mcp_server*", "rest_service*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -59,3 +59,44 @@ class TopNewsResponse(BaseModel):
 class ErrorResponse(BaseModel):
     error: str
     message: str
+
+
+class SpotifyDiscoveryPlaylistRequest(BaseModel):
+    """Parameters for a private Spotify discovery playlist."""
+
+    top_n: int = Field(
+        default=35,
+        ge=1,
+        le=35,
+        description="Number of top tracks used as the source pool (1 to 35).",
+    )
+    playlist_name: str = Field(
+        default="Discovery playlist",
+        min_length=1,
+        max_length=100,
+        description="Name for the Spotify playlist.",
+    )
+    public: bool = Field(
+        default=False,
+        description="Whether the playlist is public. Defaults to a private playlist.",
+    )
+
+    @field_validator("playlist_name")
+    @classmethod
+    def validate_playlist_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("playlist_name must not be empty")
+        return value
+
+
+class SpotifyDiscoveryPlaylistResponse(BaseModel):
+    playlist_id: str
+    playlist_url: str
+    playlist_name: str
+    public: bool
+    source_tracks_added: int
+    recommendations_added: int
+    seed_counts: dict[str, int]
+    recommendation_quotas: dict[str, int]
+    warnings: list[str] = Field(default_factory=list)

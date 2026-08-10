@@ -3,7 +3,9 @@ services:
     build: .
     env_file: .env
     volumes:
-      - ./data:/app/data:ro
+      # Spotify may rotate a refresh token during normal API use. The token
+      # store writes it atomically with 0600 permissions.
+      - ./data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
@@ -30,3 +32,15 @@ services:
     volumes:
       - ./data:/app/data
     entrypoint: ["python", "scripts/authorize_telegram.py"]
+
+  spotify-auth:
+    build: .
+    profiles: ["spotify-auth"]
+    env_file: .env
+    environment:
+      SPOTIFY_AUTH_BIND_HOST: 0.0.0.0
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:8888:8888"
+    entrypoint: ["python", "scripts/authorize_spotify.py"]
