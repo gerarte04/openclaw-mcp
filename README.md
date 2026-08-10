@@ -74,9 +74,12 @@ http://127.0.0.1:8888/callback
 ```
 
 Put its Client ID (never a client secret) in `.env` as `SPOTIFY_CLIENT_ID`.
-In Development Mode, also add the Spotify account as a test user. The app must
-request `user-top-read`, `playlist-modify-private`, and, if public playlists
-are needed, `playlist-modify-public`.
+In Development Mode, also add the Spotify account as a test user. The app
+requests `user-top-read`, `user-library-read`, `playlist-read-private`,
+`playlist-read-collaborative`, `playlist-modify-private`, and
+`playlist-modify-public`. If Spotify was authorized before the library-read
+scopes were added, repeat the manual authorization flow to issue a refresh
+token with the new grants.
 
 Create a Last.fm API key at <https://www.last.fm/api/account/create> and set
 `LASTFM_API_KEY`. It is used only to obtain similar tracks; Spotify remains the
@@ -116,11 +119,16 @@ docker compose up -d --build
 `top_n` is limited to 1–35. The service reads short-, medium-, and long-term
 top tracks (at most Spotify's 50-track response limit), randomly selects
 diverse seeds, queries Last.fm with bounded concurrency and a TTL cache, then
-matches the best candidates back to Spotify by both title and artist. It
-combines up to 25% known tracks (at most 10) with three times as many new
-recommendations. The response includes the playlist URL, actual counts,
-temporal seed quotas, and warnings if a catalogue segment ran short.
+matches the best candidates back to Spotify by both title and artist. Before
+asking Last.fm, it reads the current user's saved tracks and all readable
+playlist items, then excludes those tracks from new recommendations. The
+intentional source portion—up to 25% known tracks (at most 10)—is not filtered.
+The response includes the playlist URL, actual counts, temporal seed quotas,
+the number of familiar recommendations excluded, unreadable-playlist count, and
+warnings if a catalogue segment ran short.
 
-If authorization is missing, REST and MCP return `SPOTIFY_AUTH_REQUIRED`; rerun
-the manual authorization command. They never ask for a Spotify password or
-authorization code.
+If authorization is missing or its refresh token lacks library-read scopes,
+REST and MCP return `SPOTIFY_AUTH_REQUIRED`; rerun the manual authorization
+command. They never ask for a Spotify password or authorization code. See
+[SPOTIFY_ALGO.md](SPOTIFY_ALGO.md) for the complete selection algorithm,
+rate limits, and filtering behavior.

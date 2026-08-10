@@ -15,7 +15,7 @@ from app.common.models import (
     SpotifyDiscoveryPlaylistResponse,
 )
 from rest_service.lastfm_client import LastfmClient, SimilarTrack, get_similar_limited
-from rest_service.spotify_client import SpotifyClient, SpotifyTrack
+from rest_service.spotify_client import SpotifyClient, SpotifyLibrary, SpotifyTrack
 
 
 class DiscoveryPlaylistError(RuntimeError):
@@ -24,6 +24,8 @@ class DiscoveryPlaylistError(RuntimeError):
 
 class SpotifyProtocol(Protocol):
     async def get_top_tracks(self, time_range: str, limit: int) -> list[SpotifyTrack]: ...
+
+    async def get_library(self) -> SpotifyLibrary: ...
 
     async def search_track(self, name: str, artist: str) -> list[SpotifyTrack]: ...
 
@@ -55,6 +57,36 @@ def normalise(value: str) -> str:
 
 def track_key(name: str, artist: str) -> tuple[str, str]:
     return normalise(name), normalise(artist)
+
+
+@dataclass
+class LibraryExclusions:
+    """Request-scoped identity set for tracks already available to the user."""
+
+    track_ids: set[str]
+    track_keys: set[tuple[str, str]]
+    excluded_candidate_keys: set[tuple[str, str]]
+    excluded_spotify_ids: set[str]
+
+    @classmethod
+    def from_tracks(cls, tracks: Iterable[SpotifyTrack]) -> "LibraryExclusions":
+        values = list(tracks)
+        return cls(
+            track_ids={track.id for track in values},
+            track_keys={track_key(track.name, track.artist) for track in values},
+            excluded_candidate_keys=set(),
+            excluded_spotify_ids=set(),
+        )
+
+    def exclude_candidate(self, key: tuple[str, str]) -> None:
+        self.excluded_candidate_keys.add(key)
+
+    def exclude_spotify_track(self, track: SpotifyTrack) -> None:
+        self.excluded_spotify_ids.add(track.id)
+
+    @property
+    def excluded_count(self) -> int:
+        return len(self.excluded_candidate_keys) + len(self.excluded_spotify_ids)
 
 
 def select_seed_tracks(
@@ -125,10 +157,11 @@ class SpotifyDiscoveryService:
             "medium_term": ceil(request.top_n * 1.3),
             "long_term": ceil(request.top_n * 1.42),
         }
-        short_tracks, medium_tracks, long_tracks = await asyncio.gather(
+        short_tracks, medium_tracks, long_tracks, library = await asyncio.gather(
             self.spotify.get_top_tracks("short_term", limits["short_term"]),
             self.spotify.get_top_tracks("medium_term", limits["medium_term"]),
             self.spotify.get_top_tracks("long_term", limits["long_term"]),
+            self.spotify.get_library(),
         )
         received = {
             "short_term": short_tracks,
@@ -140,8 +173,9 @@ class SpotifyDiscoveryService:
         known_tracks = self._unique_tracks(
             track for segment in SEGMENTS for track in received[segment]
         )
-        known_keys = {track_key(track.name, track.artist) for track in known_tracks}
-        candidates = await self._similar_candidates(seeds, known_keys)
+        source_keys = {track_key(track.name, track.artist) for track in known_tracks}
+        exclusions = LibraryExclusions.from_tracks(library.tracks)
+        candidates = await self._similar_candidates(seeds, source_keys, exclusions)
 
         source_limit = min(10, ceil(request.top_n * 0.25))
         source_tracks = self.rng.sample(known_tracks, min(source_limit, len(known_tracks)))
@@ -149,7 +183,7 @@ class SpotifyDiscoveryService:
         recommendation_target = source_limit * 3
         quotas = proportional_quotas(recommendation_target, seed_counts)
         recommendation_tracks, actual_quotas, warnings = await self._resolve_recommendations(
-            candidates, quotas, known_keys, reserved_uris=set(source_uris)
+            candidates, quotas, source_keys, exclusions, reserved_uris=set(source_uris)
         )
         uris = [*source_uris, *(track.uri for track in recommendation_tracks)]
         if not uris:
@@ -166,6 +200,10 @@ class SpotifyDiscoveryService:
                 f"Only {len(recommendation_tracks)} new recommendations were available; "
                 f"target was {recommendation_target}."
             )
+        if library.unavailable_playlists:
+            warnings.append(
+                f"Skipped {library.unavailable_playlists} Spotify playlist(s) whose items are unavailable."
+            )
 
         playlist = await self.spotify.create_playlist(request.playlist_name, request.public)
         await self.spotify.add_tracks(playlist.id, uris)
@@ -178,11 +216,16 @@ class SpotifyDiscoveryService:
             recommendations_added=len(recommendation_tracks),
             seed_counts=seed_counts,
             recommendation_quotas=actual_quotas,
+            known_tracks_excluded=exclusions.excluded_count,
+            unavailable_playlists=library.unavailable_playlists,
             warnings=warnings,
         )
 
     async def _similar_candidates(
-        self, seeds: dict[str, list[SpotifyTrack]], known_keys: set[tuple[str, str]]
+        self,
+        seeds: dict[str, list[SpotifyTrack]],
+        source_keys: set[tuple[str, str]],
+        exclusions: LibraryExclusions,
     ) -> dict[str, list[AggregatedCandidate]]:
         flattened = [(segment, track) for segment in SEGMENTS for track in seeds[segment]]
         if not flattened:
@@ -191,6 +234,7 @@ class SpotifyDiscoveryService:
             self.lastfm,
             [(track.artist, track.name) for _, track in flattened],
             self.lastfm.config.lastfm_max_concurrency,
+            self.lastfm.config.lastfm_requests_per_second,
         )
         scores: dict[str, dict[tuple[str, str], float]] = {
             segment: defaultdict(float) for segment in SEGMENTS
@@ -199,7 +243,10 @@ class SpotifyDiscoveryService:
         for (segment, _), similar_tracks in zip(flattened, similar_lists, strict=True):
             for similar in similar_tracks:
                 key = track_key(similar.name, similar.artist)
-                if key in known_keys:
+                if key in source_keys:
+                    continue
+                if key in exclusions.track_keys:
+                    exclusions.exclude_candidate(key)
                     continue
                 labels[key] = (similar.name, similar.artist)
                 scores[segment][key] += similar.similarity
@@ -226,7 +273,8 @@ class SpotifyDiscoveryService:
         self,
         candidates: dict[str, list[AggregatedCandidate]],
         initial_quotas: dict[str, int],
-        known_keys: set[tuple[str, str]],
+        source_keys: set[tuple[str, str]],
+        exclusions: LibraryExclusions | None = None,
         reserved_uris: set[str] | None = None,
     ) -> tuple[list[SpotifyTrack], dict[str, int], list[str]]:
         """Fill segment quotas, transferring shortages proportionally to other segments."""
@@ -245,7 +293,8 @@ class SpotifyDiscoveryService:
                     track, positions[segment] = await self._next_catalogue_track(
                         candidates[segment],
                         positions[segment],
-                        known_keys,
+                        source_keys,
+                        exclusions,
                         selected_uris,
                         search_cache,
                     )
@@ -277,7 +326,8 @@ class SpotifyDiscoveryService:
         self,
         candidates: list[AggregatedCandidate],
         position: int,
-        known_keys: set[tuple[str, str]],
+        source_keys: set[tuple[str, str]],
+        exclusions: LibraryExclusions | None,
         selected_uris: set[str],
         cache: dict[tuple[str, str], SpotifyTrack | None],
     ) -> tuple[SpotifyTrack | None, int]:
@@ -285,17 +335,23 @@ class SpotifyDiscoveryService:
             candidate = candidates[position]
             position += 1
             key = track_key(candidate.name, candidate.artist)
+            if exclusions and key in exclusions.track_keys:
+                exclusions.exclude_candidate(key)
+                continue
             if key not in cache:
                 matches = await self.spotify.search_track(candidate.name, candidate.artist)
-                cache[key] = next(
-                    (
-                        track
-                        for track in matches
-                        if track_key(track.name, track.artist) == key
-                        and key not in known_keys
-                    ),
-                    None,
-                )
+                cache[key] = None
+                for track in matches:
+                    if track_key(track.name, track.artist) != key or key in source_keys:
+                        continue
+                    if exclusions and (
+                        track.id in exclusions.track_ids
+                        or track_key(track.name, track.artist) in exclusions.track_keys
+                    ):
+                        exclusions.exclude_spotify_track(track)
+                        continue
+                    cache[key] = track
+                    break
             track = cache[key]
             if track and track.uri not in selected_uris:
                 return track, position

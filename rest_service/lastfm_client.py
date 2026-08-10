@@ -30,6 +30,23 @@ class SimilarTrack:
     similarity: float
 
 
+class AsyncRateLimiter:
+    """Space request starts so a shared public API budget is not exceeded."""
+
+    def __init__(self, requests_per_second: float) -> None:
+        self.interval = 1 / max(requests_per_second, 0.1)
+        self._lock = asyncio.Lock()
+        self._next_request_at = 0.0
+
+    async def wait(self) -> None:
+        async with self._lock:
+            now = time.monotonic()
+            delay = max(0.0, self._next_request_at - now)
+            self._next_request_at = max(now, self._next_request_at) + self.interval
+        if delay:
+            await asyncio.sleep(delay)
+
+
 class LastfmClient:
     """Fetches and TTL-caches `track.getSimilar` responses."""
 
@@ -37,6 +54,12 @@ class LastfmClient:
         self.config = config
         self.client = client
         self._cache: dict[tuple[str, str], tuple[float, list[SimilarTrack]]] = {}
+        self._similar_rate_limiter = AsyncRateLimiter(config.lastfm_requests_per_second)
+
+    @property
+    def similar_rate_limiter(self) -> AsyncRateLimiter:
+        """Share one Last.fm request budget across playlist creations."""
+        return self._similar_rate_limiter
 
     async def get_similar(self, artist: str, track: str) -> list[SimilarTrack]:
         if not self.config.lastfm_api_key:
@@ -94,13 +117,18 @@ class LastfmClient:
 
 
 async def get_similar_limited(
-    client: LastfmClient, seeds: list[tuple[str, str]], concurrency: int
+    client: LastfmClient,
+    seeds: list[tuple[str, str]],
+    concurrency: int,
+    requests_per_second: float = 4.0,
 ) -> list[list[SimilarTrack]]:
-    """Fetch similarity lists while placing a bounded load on Last.fm."""
+    """Fetch similarity lists within concurrency and public rate budgets."""
     semaphore = asyncio.Semaphore(max(1, concurrency))
+    limiter = getattr(client, "similar_rate_limiter", None) or AsyncRateLimiter(requests_per_second)
 
     async def request(seed: tuple[str, str]) -> list[SimilarTrack]:
         async with semaphore:
+            await limiter.wait()
             return await client.get_similar(*seed)
 
     return await asyncio.gather(*(request(seed) for seed in seeds))

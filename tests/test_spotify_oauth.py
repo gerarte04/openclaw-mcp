@@ -26,6 +26,9 @@ def test_pkce_authorization_url_contains_state_and_s256_challenge() -> None:
     assert query["code_challenge_method"] == ["S256"]
     assert query["code_challenge"] == [code_challenge("verifier")]
     assert "user-top-read" in query["scope"][0]
+    assert "user-library-read" in query["scope"][0]
+    assert "playlist-read-private" in query["scope"][0]
+    assert "playlist-read-collaborative" in query["scope"][0]
 
 
 def test_refresh_token_store_uses_private_file_permissions(tmp_path: Path) -> None:

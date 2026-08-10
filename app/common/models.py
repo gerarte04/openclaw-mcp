@@ -99,4 +99,6 @@ class SpotifyDiscoveryPlaylistResponse(BaseModel):
     recommendations_added: int
     seed_counts: dict[str, int]
     recommendation_quotas: dict[str, int]
+    known_tracks_excluded: int
+    unavailable_playlists: int
     warnings: list[str] = Field(default_factory=list)

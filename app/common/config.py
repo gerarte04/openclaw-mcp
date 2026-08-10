@@ -26,10 +26,12 @@ class Settings(BaseSettings):
     spotify_token_file: Path = Path("data/spotify/refresh-token.json")
     spotify_api_base_url: str = "https://api.spotify.com/v1"
     spotify_accounts_base_url: str = "https://accounts.spotify.com"
+    spotify_playlist_item_concurrency: int = 4
     lastfm_api_key: str = ""
     lastfm_api_base_url: str = "https://ws.audioscrobbler.com/2.0/"
     lastfm_cache_ttl_seconds: float = 3600.0
     lastfm_max_concurrency: int = 6
+    lastfm_requests_per_second: float = 4.0
 
 
 settings = Settings()

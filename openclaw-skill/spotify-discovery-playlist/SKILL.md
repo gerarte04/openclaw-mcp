@@ -13,6 +13,11 @@ Spotify catalog search to verify every result. It does not use Spotify's
 Recommendations API because that endpoint is unavailable (404) to new
 Development Mode applications without Extended access.
 
+Saved tracks and tracks in readable Spotify playlists are excluded only from
+new recommendations. The intentionally familiar source portion (up to 25%) is
+retained. The tool may report how many familiar candidates were excluded and
+how many followed playlists could not be read.
+
 ## Preconditions
 
 The user must configure a Spotify Dashboard app, add
@@ -24,10 +29,12 @@ docker compose --profile spotify-auth run --rm --service-ports spotify-auth
 docker compose up -d --build
 ```
 
-The authorization app requests `user-top-read`, `playlist-modify-private`, and
-`playlist-modify-public` when a public playlist is requested. Do not ask for,
-receive, or handle a Spotify password, authorization code, refresh token, or
-other credential. The local PKCE flow handles these directly.
+The authorization app requests `user-top-read`, `user-library-read`,
+`playlist-read-private`, `playlist-read-collaborative`,
+`playlist-modify-private`, and `playlist-modify-public`. A previous
+authorization must be repeated to grant the added library-read scopes. Do not
+ask for, receive, or handle a Spotify password, authorization code, refresh
+token, or other credential. The local PKCE flow handles these directly.
 
 If the tool returns `SPOTIFY_AUTH_REQUIRED`, tell the user to manually repeat
 the authorization command. Do not try to authorize Spotify through OpenClaw.
@@ -45,8 +52,9 @@ Call `createSpotifyDiscoveryPlaylist` with:
   a public playlist.
 
 The tool returns the Spotify playlist URL, actual known/recommended-track
-counts, seed counts and recommendation quotas per time segment, plus warnings
-when a segment has too few available tracks.
+counts, seed counts and recommendation quotas per time segment, library-filter
+diagnostics, plus warnings when a segment has too few available tracks or a
+followed playlist is unreadable.
 
 ## Response template
 

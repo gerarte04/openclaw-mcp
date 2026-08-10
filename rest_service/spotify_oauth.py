@@ -13,7 +13,14 @@ from urllib.parse import urlencode
 
 
 SPOTIFY_AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
-SPOTIFY_SCOPES = ("user-top-read", "playlist-modify-private", "playlist-modify-public")
+SPOTIFY_SCOPES = (
+    "user-top-read",
+    "user-library-read",
+    "playlist-read-private",
+    "playlist-read-collaborative",
+    "playlist-modify-private",
+    "playlist-modify-public",
+)
 
 
 class SpotifyOAuthError(RuntimeError):

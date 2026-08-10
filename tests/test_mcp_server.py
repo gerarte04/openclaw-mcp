@@ -79,6 +79,24 @@ async def test_mcp_rejects_invalid_spotify_top_n() -> None:
 
 
 @pytest.mark.asyncio
+async def test_mcp_preserves_spotify_library_diagnostics() -> None:
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            json={"known_tracks_excluded": 5, "unavailable_playlists": 2},
+        )
+    )
+    with patch(
+        "mcp_server.server.httpx.AsyncClient",
+        return_value=httpx.AsyncClient(transport=transport),
+    ):
+        result = await create_spotify_discovery_playlist()
+
+    assert '"known_tracks_excluded":5' in result.replace(" ", "")
+    assert '"unavailable_playlists":2' in result.replace(" ", "")
+
+
+@pytest.mark.asyncio
 async def test_mcp_handles_fastapi_validation_payload() -> None:
     transport = httpx.MockTransport(lambda request: httpx.Response(422, json={"detail": []}))
 
