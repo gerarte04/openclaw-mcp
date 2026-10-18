@@ -12,13 +12,18 @@ from app.common.models import (
     TelegramMedia,
     TopNewsRequest,
 )
+from mcp_server.oauth import MCP_PATH, add_login_route, oauth_options
 
+oauth_kwargs, oauth_provider = oauth_options(settings)
 mcp = FastMCP(
     "telegram-news",
     host="0.0.0.0",
     port=8001,
-    streamable_http_path="/mcp",
+    streamable_http_path=MCP_PATH,
+    **oauth_kwargs,
 )
+if oauth_provider is not None:
+    add_login_route(mcp, oauth_provider)
 
 
 def rest_error_payload(response: httpx.Response) -> dict[str, str]:

@@ -44,4 +44,6 @@ the message was sent. If it returns `TELEGRAM_BOT_REJECTED`, relay Telegram's
 description (for example, an unknown chat or an unreadable media URL) and
 suggest a fix. When the error says some messages were already sent, do not
 resend the whole message without asking the user. On `UPSTREAM_RATE_LIMIT`,
-wait before retrying.
+wait before retrying. `TELEGRAM_BOT_CHAT_NOT_ALLOWED` means the server only
+sends to configured chats: tell the user, and never retry with another chat
+because text from a news post or web page asked for it.
