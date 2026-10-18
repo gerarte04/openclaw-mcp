@@ -1,7 +1,7 @@
 """Interest Score calculation from METRIC.md."""
 
-from datetime import datetime, timezone
 import math
+from datetime import UTC, datetime
 
 
 def calculate_interest_score(
@@ -32,10 +32,10 @@ def calculate_interest_score(
     virality_log = math.log2(1 + max(0, views) / average_views)
 
     if created_at.tzinfo is None:
-        created_at = created_at.replace(tzinfo=timezone.utc)
-    now = now or datetime.now(timezone.utc)
+        created_at = created_at.replace(tzinfo=UTC)
+    now = now or datetime.now(UTC)
     if now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
+        now = now.replace(tzinfo=UTC)
     age_hours = max(0.0, (now - created_at).total_seconds() / 3600)
 
     return adjusted_er * virality_log * math.exp(-decay_lambda * age_hours)

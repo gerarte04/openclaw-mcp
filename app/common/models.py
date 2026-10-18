@@ -1,8 +1,8 @@
 """Request and response models shared by REST and MCP services."""
 
+import re
 from datetime import datetime
 from enum import StrEnum
-import re
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -19,9 +19,7 @@ TELEGRAM_MEDIA_LIMIT = 10
 class TopNewsRequest(BaseModel):
     """Filters used to fetch and rank Telegram channel posts."""
 
-    period: str = Field(
-        description="Compact duration such as 1w, 1d, 9h32m, or 1w2d3h4m."
-    )
+    period: str = Field(description="Compact duration such as 1w, 1d, 9h32m, or 1w2d3h4m.")
     exclude_mode: bool = Field(
         default=False,
         description="When true, use all channels except excluded_channels.",

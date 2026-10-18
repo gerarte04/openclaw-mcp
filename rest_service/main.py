@@ -14,16 +14,16 @@ from app.common.models import (
 )
 from rest_service.lastfm_client import (
     LastfmApiError,
+    LastfmClient,
     LastfmRateLimitError,
     LastfmTemporaryError,
-    LastfmClient,
 )
 from rest_service.spotify_client import (
     SpotifyApiError,
     SpotifyAuthRequiredError,
+    SpotifyClient,
     SpotifyRateLimitError,
     SpotifyTemporaryError,
-    SpotifyClient,
 )
 from rest_service.spotify_discovery import DiscoveryPlaylistError, SpotifyDiscoveryService
 from rest_service.telegram_bot import (

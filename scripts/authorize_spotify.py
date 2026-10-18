@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from pathlib import Path
 import secrets
 import sys
-from urllib.parse import parse_qs, urlparse
 import webbrowser
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
-from dotenv import load_dotenv
 import httpx
+from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.common.config import Settings  # noqa: E402
-from rest_service.spotify_oauth import (  # noqa: E402
+from app.common.config import Settings
+from rest_service.spotify_oauth import (
     RefreshTokenStore,
     SpotifyOAuthError,
     build_authorization_url,
@@ -29,7 +29,7 @@ class CallbackHandler(BaseHTTPRequestHandler):
 
     callback_query: dict[str, list[str]] | None = None
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         if urlparse(self.path).path != "/callback":
             self.send_error(404)
             return

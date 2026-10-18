@@ -112,7 +112,9 @@ async def test_spotify_client_paginates_library_and_skips_removed_items(tmp_path
                     200,
                     json={"items": [{"track": spotify_track("liked-1")}], "next": "next-page"},
                 )
-            return httpx.Response(200, json={"items": [{"track": spotify_track("liked-2")}], "next": None})
+            return httpx.Response(
+                200, json={"items": [{"track": spotify_track("liked-2")}], "next": None}
+            )
         if request.url.path == "/v1/me/playlists":
             return httpx.Response(
                 200,
@@ -121,7 +123,10 @@ async def test_spotify_client_paginates_library_and_skips_removed_items(tmp_path
         if request.url.path == "/v1/playlists/readable/items":
             return httpx.Response(
                 200,
-                json={"items": [{"track": spotify_track("playlist-1")}, {"track": None}], "next": None},
+                json={
+                    "items": [{"track": spotify_track("playlist-1")}, {"track": None}],
+                    "next": None,
+                },
             )
         if request.url.path == "/v1/playlists/forbidden/items":
             return httpx.Response(403, json={"error": {"status": 403}})
@@ -144,7 +149,9 @@ async def test_spotify_client_paginates_library_and_skips_removed_items(tmp_path
 
 
 @pytest.mark.asyncio
-async def test_spotify_client_retries_429_using_retry_after(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_spotify_client_retries_429_using_retry_after(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     token_path = tmp_path / "refresh-token.json"
     RefreshTokenStore(token_path).write("test-refresh-token")
     calls = 0

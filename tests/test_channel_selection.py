@@ -1,5 +1,9 @@
 from app.common.models import TopNewsRequest
-from rest_service.telegram_client import ChannelInfo, TelegramNewsRepository, UnknownChannelSelectorError
+from rest_service.telegram_client import (
+    ChannelInfo,
+    TelegramNewsRepository,
+    UnknownChannelSelectorError,
+)
 
 
 def channel(channel_id: int, title: str, username: str | None = None) -> ChannelInfo:

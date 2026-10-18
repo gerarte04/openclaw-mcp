@@ -1,11 +1,11 @@
 """Telegram data access built on a pre-authorized Telethon session."""
 
 import asyncio
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
 import logging
 import re
 import shutil
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -87,7 +87,7 @@ class TelegramNewsRepository:
     ) -> tuple[list[NewsPost], list[str], int]:
         channels = await self._list_channels(client)
         selected, ignored = self._select_channels(channels, request)
-        cutoff = datetime.now(timezone.utc) - parse_period(request.period)
+        cutoff = datetime.now(UTC) - parse_period(request.period)
         ranking: list[NewsPost] = []
         started_at = asyncio.get_running_loop().time()
         scanned_channels = 0
@@ -97,7 +97,9 @@ class TelegramNewsRepository:
                 asyncio.get_running_loop().time() - started_at
             )
             if remaining <= 0:
-                logger.warning("Telegram query deadline reached after %s channels", scanned_channels)
+                logger.warning(
+                    "Telegram query deadline reached after %s channels", scanned_channels
+                )
                 break
             try:
                 async with asyncio.timeout(
@@ -123,9 +125,7 @@ class TelegramNewsRepository:
     def _select_channels(
         channels: list[ChannelInfo], request: TopNewsRequest
     ) -> tuple[list[ChannelInfo], list[str]]:
-        by_selector = {
-            selector: channel for channel in channels for selector in channel.selectors
-        }
+        by_selector = {selector: channel for channel in channels for selector in channel.selectors}
 
         def resolve(selectors: list[str]) -> tuple[set[int], list[str]]:
             resolved: set[int] = set()
@@ -145,14 +145,16 @@ class TelegramNewsRepository:
                 f"Included channels not found: {', '.join(included_ignored)}"
             )
         if request.exclude_mode:
-            return [channel for channel in channels if channel.id not in excluded_ids], excluded_ignored
+            return [
+                channel for channel in channels if channel.id not in excluded_ids
+            ], excluded_ignored
         return [channel for channel in channels if channel.id in included_ids], included_ignored
 
     async def _get_channel_posts(
         self, client: TelegramClient, channel: ChannelInfo, cutoff: datetime
     ) -> list[NewsPost]:
         """Fetch one history window to derive both channel baseline and ranked posts."""
-        week_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        week_cutoff = datetime.now(UTC) - timedelta(days=7)
         history_cutoff = min(cutoff, week_cutoff)
         views: list[int] = []
         messages: list[Message] = []
@@ -178,7 +180,9 @@ class TelegramNewsRepository:
         if not text or message.id is None or message.date is None:
             return None
 
-        reactions = sum(result.count for result in (message.reactions.results if message.reactions else []))
+        reactions = sum(
+            result.count for result in (message.reactions.results if message.reactions else [])
+        )
         comments = message.replies.replies if message.replies else 0
         shares = message.forwards or 0
         views = message.views or 0

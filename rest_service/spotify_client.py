@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 
 import httpx
@@ -124,9 +124,7 @@ class SpotifyClient:
             try:
                 return max(
                     0.0,
-                    (
-                        parsedate_to_datetime(retry_after) - datetime.now(timezone.utc)
-                    ).total_seconds(),
+                    (parsedate_to_datetime(retry_after) - datetime.now(UTC)).total_seconds(),
                 )
             except (TypeError, ValueError):
                 return 1.0
@@ -201,9 +199,7 @@ class SpotifyClient:
 
     async def get_saved_tracks(self) -> list[SpotifyTrack]:
         """Read every saved track in the current user's library."""
-        items = await self._get_paginated_items(
-            "/me/tracks", limit=50, auth_required_on_403=True
-        )
+        items = await self._get_paginated_items("/me/tracks", limit=50, auth_required_on_403=True)
         return self._parse_tracks(items, wrapper_key="track")
 
     async def get_user_playlist_ids(self) -> list[str]:

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict
-from dataclasses import dataclass
-from math import ceil
 import random
 import re
-from typing import Iterable, Protocol
+from collections import defaultdict
+from collections.abc import Iterable
+from dataclasses import dataclass
+from math import ceil
+from typing import Protocol
 
 from app.common.models import (
     SpotifyDiscoveryPlaylistRequest,
@@ -69,7 +70,7 @@ class LibraryExclusions:
     excluded_spotify_ids: set[str]
 
     @classmethod
-    def from_tracks(cls, tracks: Iterable[SpotifyTrack]) -> "LibraryExclusions":
+    def from_tracks(cls, tracks: Iterable[SpotifyTrack]) -> LibraryExclusions:
         values = list(tracks)
         return cls(
             track_ids={track.id for track in values},

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
@@ -49,7 +49,7 @@ def test_spotify_response_exposes_library_filter_diagnostics() -> None:
 
 
 def test_interest_score_uses_engagement_and_freshness() -> None:
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    now = datetime(2026, 1, 1, tzinfo=UTC)
     score = calculate_interest_score(
         reactions=10,
         comments=2,
@@ -90,7 +90,7 @@ def test_interest_score_is_zero_without_channel_baseline() -> None:
             shares=0,
             views=100,
             average_views=0,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             smoothing_k=100,
             decay_lambda=0.05,
             reaction_weight=1,

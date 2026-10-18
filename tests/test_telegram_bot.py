@@ -8,10 +8,10 @@ import pytest
 os.environ.setdefault("TELEGRAM_API_ID", "1")
 os.environ.setdefault("TELEGRAM_API_HASH", "test-hash")
 
-from app.common.config import Settings  # noqa: E402
-from app.common.models import TelegramBotMessageRequest  # noqa: E402
-from mcp_server.server import send_telegram_bot_message  # noqa: E402
-from rest_service.telegram_bot import (  # noqa: E402
+from app.common.config import Settings
+from app.common.models import TelegramBotMessageRequest
+from mcp_server.server import send_telegram_bot_message
+from rest_service.telegram_bot import (
     TelegramBotClient,
     TelegramBotNotConfiguredError,
     TelegramBotRejectedError,
@@ -150,9 +150,7 @@ async def test_client_requires_token_and_chat() -> None:
     with pytest.raises(TelegramBotNotConfiguredError):
         await TelegramBotClient(make_config(telegram_bot_token="")).send_message(request)
     with pytest.raises(TelegramBotNotConfiguredError):
-        await TelegramBotClient(make_config(telegram_bot_default_chat_id="")).send_message(
-            request
-        )
+        await TelegramBotClient(make_config(telegram_bot_default_chat_id="")).send_message(request)
 
 
 @pytest.mark.asyncio

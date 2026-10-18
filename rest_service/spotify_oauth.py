@@ -6,11 +6,10 @@ import base64
 import hashlib
 import json
 import os
-from pathlib import Path
 import secrets
 import stat
+from pathlib import Path
 from urllib.parse import urlencode
-
 
 SPOTIFY_AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
 SPOTIFY_SCOPES = (
@@ -53,15 +52,19 @@ def build_authorization_url(
     """Build an Authorization Code with PKCE URL without exposing credentials."""
     if not client_id:
         raise SpotifyOAuthError("SPOTIFY_CLIENT_ID is required")
-    return f"{SPOTIFY_AUTHORIZE_URL}?{urlencode({
-        'response_type': 'code',
-        'client_id': client_id,
-        'redirect_uri': redirect_uri,
-        'state': state,
-        'code_challenge_method': 'S256',
-        'code_challenge': code_challenge(verifier),
-        'scope': ' '.join(scopes),
-    })}"
+    return f"{SPOTIFY_AUTHORIZE_URL}?{
+        urlencode(
+            {
+                'response_type': 'code',
+                'client_id': client_id,
+                'redirect_uri': redirect_uri,
+                'state': state,
+                'code_challenge_method': 'S256',
+                'code_challenge': code_challenge(verifier),
+                'scope': ' '.join(scopes),
+            }
+        )
+    }"
 
 
 class RefreshTokenStore:

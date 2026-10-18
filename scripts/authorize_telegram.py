@@ -1,15 +1,15 @@
 """Manually create or refresh the Telethon session used by the REST service."""
 
 import asyncio
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from telethon import TelegramClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.common.config import Settings  # noqa: E402
+from app.common.config import Settings
 
 
 async def authorize() -> None:
@@ -23,7 +23,8 @@ async def authorize() -> None:
         config.telegram_api_hash,
     )
     try:
-        await client.start()  # Safely prompts locally for phone, verification code, and 2FA if required.
+        # Safely prompts locally for phone, verification code, and 2FA if required.
+        await client.start()
         user = await client.get_me()
         print(f"Telegram session saved to {session_file} for account {user.id}.")
     finally:
