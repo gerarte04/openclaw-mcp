@@ -6,6 +6,10 @@ services:
       # Spotify may rotate a refresh token during normal API use. The token
       # store writes it atomically with 0600 permissions.
       - ./data:/app/data
+    ports:
+      # Loopback by default; the Ansible deployment sets 0.0.0.0 to listen on
+      # every interface.
+      - "${REST_BIND_ADDRESS:-127.0.0.1}:${REST_PORT:-8000}:8000"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
@@ -22,7 +26,7 @@ services:
       rest-server:
         condition: service_healthy
     ports:
-      - "127.0.0.1:8001:8001"
+      - "${MCP_BIND_ADDRESS:-127.0.0.1}:${MCP_PORT:-8001}:8001"
     restart: unless-stopped
 
   telegram-auth:
