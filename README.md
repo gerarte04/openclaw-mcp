@@ -39,8 +39,11 @@ service (port 8000) and the MCP server (port 8001) are published on
 publicly. `REST_BIND_ADDRESS`, `REST_PORT`, `MCP_BIND_ADDRESS`, and `MCP_PORT`
 in `.env` change this; `0.0.0.0` listens on every network interface.
 
-To deploy on a server with Ansible, where both services listen on the whole
-network by default, and to authorize Telegram and Spotify there from your
+Setting `MCP_PUBLIC_URL` (the server's public HTTPS address) turns on OAuth
+for the MCP server, so it can be added to Claude as a custom connector: Claude
+registers itself, you approve access once with `MCP_OAUTH_PASSWORD`, and its
+tokens refresh automatically. To deploy this on a server with HTTPS (Caddy)
+through Ansible, and to authorize Telegram and Spotify there from your
 terminal, see [deploy/ansible/README.md](deploy/ansible/README.md).
 
 ## OpenClaw MCP configuration
@@ -175,10 +178,15 @@ the services after changing `.env`.
   fits in 1024 characters, otherwise it is sent as a separate message first.
 - `chat_id` (numeric ID or `@channel_username`) and `parse_mode` (`HTML` or
   `MarkdownV2`) are optional.
+- With `TELEGRAM_BOT_ALLOW_ANY_CHAT=false`, the bot sends only to
+  `TELEGRAM_BOT_DEFAULT_CHAT_ID` and the comma-separated
+  `TELEGRAM_BOT_ALLOWED_CHAT_IDS`. This keeps text in Telegram posts or web
+  pages that an agent reads from redirecting messages elsewhere. The Ansible
+  deployment turns this on.
 
 The response contains `chat_id` and the sent `message_ids`. Errors are
-`TELEGRAM_BOT_NOT_CONFIGURED` (503), `TELEGRAM_BOT_AUTH_ERROR` (502, invalid
-token), `TELEGRAM_BOT_REJECTED` (422, Telegram's own description such as an
+`TELEGRAM_BOT_NOT_CONFIGURED` (503), `TELEGRAM_BOT_CHAT_NOT_ALLOWED` (403),
+`TELEGRAM_BOT_AUTH_ERROR` (502, invalid token), `TELEGRAM_BOT_REJECTED` (422, Telegram's own description such as an
 unknown chat or unreadable media URL), `UPSTREAM_RATE_LIMIT` (429), and
 `TELEGRAM_BOT_TEMPORARY_ERROR` (503). If a failure happens after some messages
 of a multi-part send were delivered, the error message says how many, so a

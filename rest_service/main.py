@@ -28,6 +28,7 @@ from rest_service.spotify_client import (
 from rest_service.spotify_discovery import DiscoveryPlaylistError, SpotifyDiscoveryService
 from rest_service.telegram_bot import (
     TelegramBotAuthError,
+    TelegramBotChatNotAllowedError,
     TelegramBotClient,
     TelegramBotError,
     TelegramBotNotConfiguredError,
@@ -178,6 +179,7 @@ def telegram_bot_error_message(message: str, error: TelegramBotError) -> str:
     "/telegram-bot/messages",
     response_model=TelegramBotMessageResponse,
     responses={
+        403: {"model": ErrorResponse},
         422: {"model": ErrorResponse},
         429: {"model": ErrorResponse},
         502: {"model": ErrorResponse},
@@ -194,6 +196,11 @@ async def send_telegram_bot_message(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={"error": "TELEGRAM_BOT_NOT_CONFIGURED", "message": str(error)},
+        ) from error
+    except TelegramBotChatNotAllowedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": "TELEGRAM_BOT_CHAT_NOT_ALLOWED", "message": str(error)},
         ) from error
     except TelegramBotAuthError as error:
         raise HTTPException(

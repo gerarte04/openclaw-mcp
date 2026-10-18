@@ -6,3 +6,5 @@ vault_spotify_client_id: replace_with_spotify_client_id
 vault_lastfm_api_key: replace_with_lastfm_api_key
 vault_telegram_bot_token: replace_with_bot_token_from_botfather
 vault_telegram_bot_default_chat_id: ""
+# At least 16 characters, e.g. the output of: openssl rand -base64 24
+vault_mcp_oauth_password: replace_with_a_long_random_password

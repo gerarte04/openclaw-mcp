@@ -9,20 +9,39 @@ on a Debian or Ubuntu server:
 3. renders `.env` from variables with `0600` permissions;
 4. optionally uploads Telegram and Spotify authorization files created
    locally;
-5. builds the images, starts the services, and checks `/healthz` and the MCP
-   port.
+5. builds the images, starts the services, and checks `/healthz`, the OAuth
+   metadata, and that `/mcp` refuses requests without a token.
 
-Both services listen on every network interface (`0.0.0.0`):
+## What is exposed
 
-- REST: `http://<server>:8000`
-- MCP: `http://<server>:8001/mcp`
+Only Caddy listens on the network, on ports 80 and 443 of every interface. It
+serves `https://<mcp_domain>/mcp` with a certificate it obtains and renews
+itself, and proxies to the MCP server. The MCP server requires OAuth: Claude
+registers itself as a client and you approve it once with a password. The
+REST service (8000) and the plain MCP port (8001) listen on `127.0.0.1` only.
 
-> **Warning.** Neither service has authentication. Anyone who can reach these
-> ports can read your Telegram channels, send messages as your bot, and create
-> playlists in your Spotify account. Restrict access with a cloud security
-> group or firewall, a VPN, or set `rest_bind_address`/`mcp_bind_address` to
-> a private interface address. Docker publishes ports through its own iptables
-> rules, so `ufw` rules alone do **not** block them.
+Further protections:
+
+- Clients may register only Claude's callback URLs
+  (`https://claude.ai/api/mcp/auth_callback` and
+  `https://claude.com/api/mcp/auth_callback`; change them with
+  `mcp_oauth_allowed_redirect_uris`), so a sign-in link cannot send an
+  authorization code anywhere else.
+- Access tokens last an hour; refresh tokens last 90 days and are rotated on
+  every use. The server stores only their SHA-256 digests, in
+  `data/oauth/state.json`, which survives restarts.
+- Five wrong passwords lock the sign-in page for 15 minutes. The lock is
+  global, so someone guessing can also keep you out for that time, but never
+  in.
+- The MCP container mounts only `data/oauth`; the Telegram session and the
+  Spotify token stay in the REST container.
+- The bot sends only to `telegram_bot_default_chat_id` and
+  `telegram_bot_allowed_chat_ids`, so a Telegram post that asks the agent to
+  message someone else cannot make it do so.
+
+Docker publishes ports through its own iptables rules, so `ufw` rules alone
+do **not** block them. Keep `rest_bind_address` and `mcp_bind_address` on
+`127.0.0.1` unless you add your own protection.
 
 ## Requirements
 
@@ -44,9 +63,15 @@ cp inventory.example.ini inventory.ini
 # Set the server address and SSH user.
 
 cp vault.example.yml group_vars/all/vault.yml
-# Fill in the Telegram, Spotify, Last.fm, and bot credentials.
+# Fill in the Telegram, Spotify, Last.fm, and bot credentials and the OAuth
+# password (openssl rand -base64 24).
 ansible-vault encrypt group_vars/all/vault.yml
 ```
+
+Set `mcp_domain` in `group_vars/all/main.yml` (the placeholder is
+`example.com`) and point the domain's DNS A/AAAA record at the server. Ports
+80 and 443 must be reachable from the internet so Caddy can obtain the
+certificate. `public_mcp: false` deploys without Caddy and without OAuth.
 
 `inventory.ini` and `group_vars/all/vault.yml` are git-ignored. Other settings
 are in `group_vars/all/main.yml`: addresses and ports, `app_dir`, and
@@ -61,6 +86,17 @@ ansible-playbook deploy.yml --ask-vault-pass --ask-become-pass
 Run the same command again to deploy new code: it copies the sources,
 rebuilds the images, and recreates changed containers. The `data/` directory
 on the server (Telegram session, Spotify refresh token) is kept.
+
+## Connecting Claude
+
+In Claude, open [claude.ai/customize/connectors](https://claude.ai/customize/connectors),
+add a custom connector, and enter `https://<mcp_domain>/mcp`. Leave the OAuth client ID and secret empty: Claude
+registers itself. Claude opens the server's sign-in page; enter
+`vault_mcp_oauth_password` and choose **Allow access**. From then on Claude,
+including its scheduled tasks, uses and refreshes the tokens itself.
+
+To disconnect every client, delete `data/oauth/state.json` on the server and
+restart `mcp-server`; changing the password does not revoke issued tokens.
 
 ## Authorization
 

@@ -25,8 +25,30 @@ services:
     depends_on:
       rest-server:
         condition: service_healthy
+    volumes:
+      # OAuth clients and token digests only; the Telegram and Spotify
+      # credentials stay out of this container.
+      - ./data/oauth:/app/data/oauth
     ports:
       - "${MCP_BIND_ADDRESS:-127.0.0.1}:${MCP_PORT:-8001}:8001"
+    restart: unless-stopped
+
+  # HTTPS reverse proxy for a public MCP endpoint (COMPOSE_PROFILES=public).
+  caddy:
+    image: caddy:2
+    profiles: ["public"]
+    environment:
+      MCP_DOMAIN: ${MCP_DOMAIN:-}
+    depends_on:
+      - mcp-server
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
     restart: unless-stopped
 
   telegram-auth:
@@ -48,3 +70,7 @@ services:
     ports:
       - "127.0.0.1:8888:8888"
     entrypoint: ["python", "scripts/authorize_spotify.py"]
+
+volumes:
+  caddy-data:
+  caddy-config:

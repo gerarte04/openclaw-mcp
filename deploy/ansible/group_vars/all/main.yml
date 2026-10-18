@@ -6,12 +6,29 @@ compose_project_name: openclaw-mcp
 # (Debian/Ubuntu). Set to false if Docker is already installed.
 install_docker: true
 
-# Both services listen on every network interface. Use 127.0.0.1 (or a
-# specific interface address) to restrict them.
-rest_bind_address: 0.0.0.0
+# Public MCP endpoint for a Claude connector: Caddy listens on ports 80 and
+# 443 of every interface, serves https://<mcp_domain>/mcp with an automatic
+# certificate, and the MCP server requires OAuth. Point the domain's DNS
+# record at the server first. false publishes no HTTPS endpoint and keeps
+# OAuth off.
+public_mcp: true
+mcp_domain: example.com
+
+# The REST service and the plain MCP port stay on loopback; set 0.0.0.0 only
+# if they must be reachable without HTTPS and OAuth.
+rest_bind_address: 127.0.0.1
 rest_port: 8000
-mcp_bind_address: 0.0.0.0
+mcp_bind_address: 127.0.0.1
 mcp_port: 8001
+
+# OAuth redirect URIs a client may register (comma-separated). Empty keeps
+# the application default: Claude's connector callbacks.
+mcp_oauth_allowed_redirect_uris: ""
+
+# The bot may send only to telegram_bot_default_chat_id and these chats
+# (comma-separated), so text from Telegram posts cannot redirect it.
+telegram_bot_allow_any_chat: false
+telegram_bot_allowed_chat_ids: ""
 
 # Secrets: define them in group_vars/all/vault.yml (see vault.example.yml).
 telegram_api_id: "{{ vault_telegram_api_id | default('') }}"
@@ -20,6 +37,8 @@ spotify_client_id: "{{ vault_spotify_client_id | default('') }}"
 lastfm_api_key: "{{ vault_lastfm_api_key | default('') }}"
 telegram_bot_token: "{{ vault_telegram_bot_token | default('') }}"
 telegram_bot_default_chat_id: "{{ vault_telegram_bot_default_chat_id | default('') }}"
+# The password you enter when connecting Claude to the MCP server.
+mcp_oauth_password: "{{ vault_mcp_oauth_password | default('') }}"
 
 # Additional .env settings, e.g. {INTEREST_DECAY_LAMBDA: 0.003}. They override
 # the defaults rendered from templates/env.j2.

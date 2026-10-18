@@ -12,6 +12,7 @@ from app.common.config import Settings
 from app.common.models import TelegramBotMessageRequest
 from mcp_server.server import send_telegram_bot_message
 from rest_service.telegram_bot import (
+    TelegramBotChatNotAllowedError,
     TelegramBotClient,
     TelegramBotNotConfiguredError,
     TelegramBotRejectedError,
@@ -141,6 +142,44 @@ async def test_client_prefers_explicit_chat_id() -> None:
         )
 
     assert result.chat_id == "@channel"
+
+
+@pytest.mark.asyncio
+async def test_client_restricts_chats_when_any_chat_is_disallowed() -> None:
+    sent_to: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent_to.append(json.loads(request.content)["chat_id"])
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 7}})
+
+    config = make_config(
+        telegram_bot_allow_any_chat=False, telegram_bot_allowed_chat_ids="@Team, -1001"
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = TelegramBotClient(config, http_client)
+        for chat_id in (None, "42", "@team", "-1001"):
+            await client.send_message(TelegramBotMessageRequest(text="Hi", chat_id=chat_id))
+        with pytest.raises(TelegramBotChatNotAllowedError, match="@stranger"):
+            await client.send_message(TelegramBotMessageRequest(text="Hi", chat_id="@stranger"))
+
+    assert sent_to == ["42", "42", "@team", "-1001"]
+
+
+def test_rest_endpoint_maps_disallowed_chat_to_403() -> None:
+    from fastapi.testclient import TestClient
+
+    from rest_service import main
+
+    async def fail(request: TelegramBotMessageRequest):
+        raise TelegramBotChatNotAllowedError("Chat @stranger is not allowed")
+
+    with patch.object(main.telegram_bot, "send_message", fail):
+        response = TestClient(main.app).post(
+            "/telegram-bot/messages", json={"text": "Hi", "chat_id": "@stranger"}
+        )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["error"] == "TELEGRAM_BOT_CHAT_NOT_ALLOWED"
 
 
 @pytest.mark.asyncio

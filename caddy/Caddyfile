@@ -1,0 +1,6 @@
+# Public HTTPS entry point for the MCP server. Caddy obtains and renews the
+# certificate for MCP_DOMAIN automatically; ports 80 and 443 must be reachable.
+{$MCP_DOMAIN} {
+	reverse_proxy mcp-server:8001
+	header -Server
+}

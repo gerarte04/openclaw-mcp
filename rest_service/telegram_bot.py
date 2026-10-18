@@ -46,6 +46,10 @@ class TelegramBotNotConfiguredError(TelegramBotError):
     """Raised when the bot token or target chat is missing."""
 
 
+class TelegramBotChatNotAllowedError(TelegramBotError):
+    """Raised when TELEGRAM_BOT_ALLOW_ANY_CHAT is false and the chat is not allowed."""
+
+
 class TelegramBotAuthError(TelegramBotError):
     """Raised when Telegram rejects the bot token."""
 
@@ -126,6 +130,11 @@ class TelegramBotClient:
             raise TelegramBotNotConfiguredError(
                 "chat_id was not given and TELEGRAM_BOT_DEFAULT_CHAT_ID is not configured"
             )
+        if not self.chat_allowed(chat_id):
+            raise TelegramBotChatNotAllowedError(
+                f"Chat {chat_id} is not in TELEGRAM_BOT_DEFAULT_CHAT_ID or "
+                "TELEGRAM_BOT_ALLOWED_CHAT_IDS"
+            )
 
         message_ids: list[int] = []
         for call in plan_calls(request, chat_id):
@@ -137,6 +146,20 @@ class TelegramBotClient:
             messages = result if isinstance(result, list) else [result]
             message_ids.extend(message["message_id"] for message in messages)
         return TelegramBotMessageResponse(chat_id=chat_id, message_ids=message_ids)
+
+    def chat_allowed(self, chat_id: str) -> bool:
+        if self.config.telegram_bot_allow_any_chat:
+            return True
+        # Usernames are case-insensitive in Telegram; numeric IDs are unaffected.
+        allowed = {
+            item.strip().lower()
+            for item in [
+                self.config.telegram_bot_default_chat_id,
+                *self.config.telegram_bot_allowed_chat_ids.split(","),
+            ]
+            if item.strip()
+        }
+        return chat_id.strip().lower() in allowed
 
     async def _call(self, call: _Call) -> dict | list:
         # The URL embeds the bot token, so httpx error texts must never be surfaced.

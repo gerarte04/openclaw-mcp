@@ -35,6 +35,17 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_bot_default_chat_id: str = ""
     telegram_bot_api_base_url: str = "https://api.telegram.org"
+    # false limits the bot to TELEGRAM_BOT_DEFAULT_CHAT_ID and
+    # TELEGRAM_BOT_ALLOWED_CHAT_IDS (comma-separated).
+    telegram_bot_allow_any_chat: bool = True
+    telegram_bot_allowed_chat_ids: str = ""
+    # Setting the public HTTPS URL of the MCP server enables OAuth on it.
+    mcp_public_url: str = ""
+    mcp_oauth_password: str = ""
+    mcp_oauth_state_file: Path = Path("data/oauth/state.json")
+    mcp_oauth_allowed_redirect_uris: str = (
+        "https://claude.ai/api/mcp/auth_callback,https://claude.com/api/mcp/auth_callback"
+    )
 
 
 settings = Settings()
