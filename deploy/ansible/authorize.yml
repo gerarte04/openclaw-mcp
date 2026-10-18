@@ -1,0 +1,166 @@
+# Authorize Telegram and Spotify for services deployed with deploy.yml.
+# Prompts run on the control machine; the scripts run in the rest-server
+# container and receive each secret on stdin.
+- name: Authorize Telegram and Spotify
+  hosts: openclaw_mcp
+  become: true
+  gather_facts: false
+  # Prompts are answered one server at a time.
+  serial: 1
+
+  vars:
+    auth_script: >-
+      docker compose --project-name {{ compose_project_name }}
+      exec -T rest-server python
+
+  tasks:
+    - name: List the running services
+      ansible.builtin.command:
+        cmd: docker compose --project-name {{ compose_project_name }} ps --status running --services
+        chdir: "{{ app_dir }}"
+      register: running_services
+      changed_when: false
+      failed_when: false
+      tags: [always]
+
+    - name: Check that deploy.yml has started the REST service
+      ansible.builtin.fail:
+        msg: The rest-server container is not running in {{ app_dir }}; run deploy.yml first.
+      when: running_services.rc != 0 or 'rest-server' not in running_services.stdout_lines
+      tags: [always]
+
+    - name: Authorize Telegram
+      tags: [telegram]
+      block:
+        - name: Check the Telegram session
+          ansible.builtin.command:
+            cmd: "{{ auth_script }} scripts/authorize_telegram.py status"
+            chdir: "{{ app_dir }}"
+          register: telegram_status
+          changed_when: false
+
+        - name: Log in to Telegram
+          when: >-
+            (telegram_status.stdout | from_json).status != 'authorized'
+            or telegram_reauthorize | bool
+          block:
+            - name: Ask for the phone number
+              ansible.builtin.pause:
+                prompt: Telegram phone number in international format (+79991234567)
+              register: telegram_phone_input
+              when: telegram_phone | length == 0
+
+            # Secrets go on stdin; no_log keeps them out of the output, and the
+            # follow-up task reports the script's error line, which never has them.
+            # Each step registers its own variable, because a skipped task
+            # overwrites the variable it registers.
+            - name: Send the login code
+              ansible.builtin.command:
+                cmd: "{{ auth_script }} scripts/authorize_telegram.py send-code"
+                chdir: "{{ app_dir }}"
+                stdin: "{{ telegram_phone if telegram_phone | length > 0 else telegram_phone_input.user_input }}"
+              register: telegram_send_step
+              changed_when: false
+              failed_when: false
+              no_log: true
+
+            - name: Report a failed code request
+              ansible.builtin.fail:
+                msg: "{{ telegram_send_step.stderr_lines | last | default('The step failed without output') }}"
+              when: telegram_send_step.rc != 0
+
+            - name: Ask for the login code
+              ansible.builtin.pause:
+                prompt: Code Telegram has sent to your account (do not forward it anywhere)
+              register: telegram_code_input
+
+            - name: Sign in with the code
+              ansible.builtin.command:
+                cmd: "{{ auth_script }} scripts/authorize_telegram.py sign-in"
+                chdir: "{{ app_dir }}"
+                stdin: "{{ telegram_code_input.user_input }}"
+              register: telegram_code_step
+              changed_when: telegram_code_step.rc == 0 and (telegram_code_step.stdout | from_json).status == 'authorized'
+              failed_when: false
+              no_log: true
+
+            - name: Report a failed sign-in
+              ansible.builtin.fail:
+                msg: "{{ telegram_code_step.stderr_lines | last | default('The step failed without output') }}"
+              when: telegram_code_step.rc != 0
+
+            - name: Sign in with the two-step verification password
+              when: (telegram_code_step.stdout | from_json).status == 'password_required'
+              block:
+                - name: Ask for the password
+                  ansible.builtin.pause:
+                    prompt: Telegram two-step verification password
+                    echo: false
+                  register: telegram_password_input
+
+                - name: Check the password
+                  ansible.builtin.command:
+                    cmd: "{{ auth_script }} scripts/authorize_telegram.py password"
+                    chdir: "{{ app_dir }}"
+                    stdin: "{{ telegram_password_input.user_input }}"
+                  register: telegram_password_step
+                  changed_when: telegram_password_step.rc == 0
+                  failed_when: false
+                  no_log: true
+
+                - name: Report a wrong password
+                  ansible.builtin.fail:
+                    msg: "{{ telegram_password_step.stderr_lines | last | default('The step failed without output') }}"
+                  when: telegram_password_step.rc != 0
+
+            - name: Show the Telegram account
+              vars:
+                telegram_final_step: >-
+                  {{ telegram_code_step if telegram_password_step is skipped else telegram_password_step }}
+              ansible.builtin.debug:
+                msg: "Telegram session saved for account {{ (telegram_final_step.stdout | from_json).user_id }}."
+
+    - name: Authorize Spotify
+      tags: [spotify]
+      block:
+        - name: Start the Spotify authorization
+          ansible.builtin.command:
+            cmd: >-
+              {{ auth_script }} scripts/authorize_spotify.py start
+              {{ '--force' if spotify_reauthorize | bool else '' }}
+            chdir: "{{ app_dir }}"
+          register: spotify_start
+          changed_when: false
+
+        - name: Finish the Spotify authorization
+          when: (spotify_start.stdout | from_json).status == 'pending'
+          block:
+            - name: Ask for the redirected address
+              ansible.builtin.pause:
+                prompt: |-
+                  Open this URL in your browser and allow access:
+
+                  {{ (spotify_start.stdout | from_json).url }}
+
+                  The browser then opens http://127.0.0.1:8888/callback?code=... and shows an
+                  error page; that is expected. Paste the full address from the address bar
+              register: spotify_redirect_input
+
+            - name: Exchange the code for a refresh token
+              ansible.builtin.command:
+                cmd: "{{ auth_script }} scripts/authorize_spotify.py finish"
+                chdir: "{{ app_dir }}"
+                stdin: "{{ spotify_redirect_input.user_input }}"
+              register: spotify_finish
+              changed_when: spotify_finish.rc == 0
+              failed_when: false
+              no_log: true
+
+            - name: Report a failed exchange
+              ansible.builtin.fail:
+                msg: "{{ spotify_finish.stderr_lines | last | default('The step failed without output') }}"
+              when: spotify_finish.rc != 0
+
+            - name: Confirm the Spotify authorization
+              ansible.builtin.debug:
+                msg: Spotify refresh token saved.

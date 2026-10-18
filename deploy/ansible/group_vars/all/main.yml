@@ -32,3 +32,9 @@ spotify_token_local_path: ""
 # Spotify rotates its refresh token on the server, so existing files are kept
 # unless this is true.
 overwrite_auth_files: false
+
+# authorize.yml: the phone number to log in to Telegram with (prompted when
+# empty), and whether to authorize again even if a session or token exists.
+telegram_phone: ""
+telegram_reauthorize: false
+spotify_reauthorize: false

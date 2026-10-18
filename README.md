@@ -40,7 +40,8 @@ publicly. `REST_BIND_ADDRESS`, `REST_PORT`, `MCP_BIND_ADDRESS`, and `MCP_PORT`
 in `.env` change this; `0.0.0.0` listens on every network interface.
 
 To deploy on a server with Ansible, where both services listen on the whole
-network by default, see [deploy/ansible/README.md](deploy/ansible/README.md).
+network by default, and to authorize Telegram and Spotify there from your
+terminal, see [deploy/ansible/README.md](deploy/ansible/README.md).
 
 ## OpenClaw MCP configuration
 
