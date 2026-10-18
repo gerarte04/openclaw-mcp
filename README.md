@@ -1,11 +1,13 @@
 # Telegram news and Spotify discovery MCP
 
-The project exposes two independent user-account integrations through one REST
-service and a Streamable HTTP MCP server:
+The project exposes independent integrations through one REST service and a
+Streamable HTTP MCP server:
 
 - `getTopNews` ranks recent posts from Telegram channels.
 - `createSpotifyDiscoveryPlaylist` builds a Spotify playlist from the user's
   top tracks and similar tracks returned by Last.fm.
+- `sendTelegramBotMessage` sends text and optional media through a Telegram
+  bot.
 
 ## Setup
 
@@ -43,8 +45,9 @@ Configure an HTTP MCP server with this local URL:
 http://127.0.0.1:8001/mcp
 ```
 
-Install `openclaw-skill/telegram-top-news` and
-`openclaw-skill/spotify-discovery-playlist` as OpenClaw skills. They document
+Install `openclaw-skill/telegram-top-news`,
+`openclaw-skill/spotify-discovery-playlist`, and
+`openclaw-skill/telegram-bot-message` as OpenClaw skills. They document
 their tools and tell agents to report required manual authorization without
 requesting credentials.
 
@@ -132,3 +135,46 @@ REST and MCP return `SPOTIFY_AUTH_REQUIRED`; rerun the manual authorization
 command. They never ask for a Spotify password or authorization code. See
 [SPOTIFY_ALGO.md](SPOTIFY_ALGO.md) for the complete selection algorithm,
 rate limits, and filtering behavior.
+
+## Telegram bot messages
+
+Create a bot with [@BotFather](https://t.me/BotFather) and put its token in
+`.env` as `TELEGRAM_BOT_TOKEN`. Optionally set `TELEGRAM_BOT_DEFAULT_CHAT_ID`
+to the chat used when a request has no `chat_id` (for example your own user
+ID; write `/start` to the bot first, because bots cannot start a private
+chat). The bot is independent from the Telethon user session above. Restart
+the services after changing `.env`.
+
+`POST /telegram-bot/messages`:
+
+```json
+{
+  "text": "Weekly digest",
+  "media": [
+    {"type": "photo", "url": "https://example.com/cover.jpg"},
+    {"type": "video", "url": "https://example.com/clip.mp4"}
+  ],
+  "chat_id": "@my_channel",
+  "parse_mode": "HTML"
+}
+```
+
+- `text`: up to 4096 characters. `media`: up to 10 items, each with `type`
+  (`photo`, `video`, `animation`, `audio`, `document`) and a public HTTP(S)
+  `url`; Telegram downloads it itself (photos up to 5 MB, other files up to
+  20 MB). At least one of `text` and `media` is required.
+- Consecutive photos and videos are sent as one album; consecutive audio
+  files and documents form albums of their own kind; animations are sent
+  individually. The text becomes the caption of the first media item when it
+  fits in 1024 characters, otherwise it is sent as a separate message first.
+- `chat_id` (numeric ID or `@channel_username`) and `parse_mode` (`HTML` or
+  `MarkdownV2`) are optional.
+
+The response contains `chat_id` and the sent `message_ids`. Errors are
+`TELEGRAM_BOT_NOT_CONFIGURED` (503), `TELEGRAM_BOT_AUTH_ERROR` (502, invalid
+token), `TELEGRAM_BOT_REJECTED` (422, Telegram's own description such as an
+unknown chat or unreadable media URL), `UPSTREAM_RATE_LIMIT` (429), and
+`TELEGRAM_BOT_TEMPORARY_ERROR` (503). If a failure happens after some messages
+of a multi-part send were delivered, the error message says how many, so a
+retry does not duplicate them unknowingly. The bot token is never returned in
+responses or error messages.

@@ -7,6 +7,8 @@ from app.common.models import (
     ErrorResponse,
     SpotifyDiscoveryPlaylistRequest,
     SpotifyDiscoveryPlaylistResponse,
+    TelegramBotMessageRequest,
+    TelegramBotMessageResponse,
     TopNewsRequest,
     TopNewsResponse,
 )
@@ -24,6 +26,15 @@ from rest_service.spotify_client import (
     SpotifyClient,
 )
 from rest_service.spotify_discovery import DiscoveryPlaylistError, SpotifyDiscoveryService
+from rest_service.telegram_bot import (
+    TelegramBotAuthError,
+    TelegramBotClient,
+    TelegramBotError,
+    TelegramBotNotConfiguredError,
+    TelegramBotRateLimitError,
+    TelegramBotRejectedError,
+    TelegramBotTemporaryError,
+)
 from rest_service.telegram_client import (
     TelegramAuthRequiredError,
     TelegramNewsRepository,
@@ -33,6 +44,7 @@ from rest_service.telegram_client import (
 app = FastAPI(title="Telegram News and Spotify Discovery REST API", version="0.2.0")
 repository = TelegramNewsRepository(settings)
 spotify_discovery = SpotifyDiscoveryService(SpotifyClient(settings), LastfmClient(settings))
+telegram_bot = TelegramBotClient(settings)
 
 
 @app.get("/healthz")
@@ -150,5 +162,84 @@ async def create_spotify_discovery_playlist(
             detail={
                 "error": "SPOTIFY_API_ERROR",
                 "message": "Spotify could not create the playlist.",
+            },
+        ) from error
+
+
+def telegram_bot_error_message(message: str, error: TelegramBotError) -> str:
+    """Warn callers about partial delivery so a retry does not duplicate messages."""
+    if error.sent_message_ids:
+        count = len(error.sent_message_ids)
+        return f"{message} {count} Telegram message(s) had already been sent."
+    return message
+
+
+@app.post(
+    "/telegram-bot/messages",
+    response_model=TelegramBotMessageResponse,
+    responses={
+        422: {"model": ErrorResponse},
+        429: {"model": ErrorResponse},
+        502: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+)
+async def send_telegram_bot_message(
+    request: TelegramBotMessageRequest,
+) -> TelegramBotMessageResponse:
+    """Send text and optional media through the configured Telegram bot."""
+    try:
+        return await telegram_bot.send_message(request)
+    except TelegramBotNotConfiguredError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": "TELEGRAM_BOT_NOT_CONFIGURED", "message": str(error)},
+        ) from error
+    except TelegramBotAuthError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "error": "TELEGRAM_BOT_AUTH_ERROR",
+                "message": telegram_bot_error_message(
+                    "Telegram rejected TELEGRAM_BOT_TOKEN.", error
+                ),
+            },
+        ) from error
+    except TelegramBotRejectedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": "TELEGRAM_BOT_REJECTED",
+                "message": telegram_bot_error_message(str(error), error),
+            },
+        ) from error
+    except TelegramBotRateLimitError as error:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "UPSTREAM_RATE_LIMIT",
+                "message": telegram_bot_error_message(
+                    "Telegram Bot API rate limit reached.", error
+                ),
+            },
+        ) from error
+    except TelegramBotTemporaryError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": "TELEGRAM_BOT_TEMPORARY_ERROR",
+                "message": telegram_bot_error_message(
+                    "Telegram Bot API is temporarily unavailable.", error
+                ),
+            },
+        ) from error
+    except TelegramBotError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "error": "TELEGRAM_BOT_API_ERROR",
+                "message": telegram_bot_error_message(
+                    "Telegram could not send the message.", error
+                ),
             },
         ) from error

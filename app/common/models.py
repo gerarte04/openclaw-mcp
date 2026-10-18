@@ -1,6 +1,7 @@
 """Request and response models shared by REST and MCP services."""
 
 from datetime import datetime
+from enum import StrEnum
 import re
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -9,6 +10,10 @@ PERIOD_PATTERN = re.compile(
     r"^(?:(?P<weeks>\d+)w)?(?:(?P<days>\d+)d)?(?:(?P<hours>\d+)h)?(?:(?P<minutes>\d+)m)?$",
     re.IGNORECASE,
 )
+
+
+TELEGRAM_TEXT_LIMIT = 4096
+TELEGRAM_MEDIA_LIMIT = 10
 
 
 class TopNewsRequest(BaseModel):
@@ -102,3 +107,76 @@ class SpotifyDiscoveryPlaylistResponse(BaseModel):
     known_tracks_excluded: int
     unavailable_playlists: int
     warnings: list[str] = Field(default_factory=list)
+
+
+class TelegramMediaType(StrEnum):
+    PHOTO = "photo"
+    VIDEO = "video"
+    ANIMATION = "animation"
+    AUDIO = "audio"
+    DOCUMENT = "document"
+
+
+class TelegramMedia(BaseModel):
+    """A media attachment that Telegram downloads from a public URL."""
+
+    type: TelegramMediaType = Field(
+        description="photo, video, animation (GIF), audio, or document."
+    )
+    url: str = Field(description="Public HTTP(S) URL that Telegram can download.")
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: str) -> str:
+        value = value.strip()
+        if not re.match(r"^https?://\S+$", value, re.IGNORECASE):
+            raise ValueError("media url must be an absolute http(s) URL")
+        return value
+
+
+class TelegramParseMode(StrEnum):
+    HTML = "HTML"
+    MARKDOWN_V2 = "MarkdownV2"
+
+
+class TelegramBotMessageRequest(BaseModel):
+    """A bot message with optional text and up to ten media attachments."""
+
+    text: str = Field(
+        default="",
+        max_length=TELEGRAM_TEXT_LIMIT,
+        description="Message text (up to 4096 characters). Used as the media caption when it fits.",
+    )
+    media: list[TelegramMedia] = Field(
+        default_factory=list,
+        max_length=TELEGRAM_MEDIA_LIMIT,
+        description="Optional media attachments in display order (at most 10).",
+    )
+    chat_id: str | None = Field(
+        default=None,
+        description="Chat ID or @channel_username. Defaults to TELEGRAM_BOT_DEFAULT_CHAT_ID.",
+    )
+    parse_mode: TelegramParseMode | None = Field(
+        default=None,
+        description="Optional Telegram formatting mode for text: HTML or MarkdownV2.",
+    )
+
+    @field_validator("chat_id", mode="before")
+    @classmethod
+    def validate_chat_id(cls, value: object) -> object:
+        if isinstance(value, int):
+            return str(value)
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
+    @model_validator(mode="after")
+    def validate_content(self) -> "TelegramBotMessageRequest":
+        if not self.text.strip() and not self.media:
+            raise ValueError("a message needs text, media, or both")
+        return self
+
+
+class TelegramBotMessageResponse(BaseModel):
+    chat_id: str
+    message_ids: list[int]

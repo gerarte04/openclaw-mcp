@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     lastfm_cache_ttl_seconds: float = 3600.0
     lastfm_max_concurrency: int = 6
     lastfm_requests_per_second: float = 4.0
+    telegram_bot_token: str = ""
+    telegram_bot_default_chat_id: str = ""
+    telegram_bot_api_base_url: str = "https://api.telegram.org"
 
 
 settings = Settings()

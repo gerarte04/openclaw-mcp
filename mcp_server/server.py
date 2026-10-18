@@ -6,7 +6,12 @@ import httpx
 from mcp.server.fastmcp import FastMCP
 
 from app.common.config import settings
-from app.common.models import SpotifyDiscoveryPlaylistRequest, TopNewsRequest
+from app.common.models import (
+    SpotifyDiscoveryPlaylistRequest,
+    TelegramBotMessageRequest,
+    TelegramMedia,
+    TopNewsRequest,
+)
 
 mcp = FastMCP(
     "telegram-news",
@@ -131,6 +136,39 @@ async def create_spotify_discovery_playlist(
     return response.text
 
 
+async def send_telegram_bot_message(
+    text: str = "",
+    media: list[TelegramMedia | dict] | None = None,
+    chat_id: str | None = None,
+    parse_mode: str | None = None,
+) -> str:
+    """Send a message with text and optional media through the Telegram bot."""
+    try:
+        request = TelegramBotMessageRequest(
+            text=text, media=media or [], chat_id=chat_id, parse_mode=parse_mode
+        )
+    except ValueError as error:
+        return json.dumps({"error": "INVALID_REQUEST", "message": str(error)})
+
+    try:
+        async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
+            response = await client.post(
+                f"{settings.rest_base_url.rstrip('/')}/telegram-bot/messages",
+                json=request.model_dump(mode="json"),
+            )
+    except httpx.HTTPError:
+        return json.dumps(
+            {
+                "error": "REST_UNAVAILABLE",
+                "message": "The Telegram bot REST service is unavailable.",
+            }
+        )
+
+    if response.is_error:
+        return json.dumps(rest_error_payload(response))
+    return response.text
+
+
 @mcp.tool(name="getTopNews")
 async def get_top_news(
     period: str,
@@ -156,6 +194,26 @@ async def create_spotify_discovery_playlist_tool(
 ) -> str:
     """Create a private Spotify discovery playlist from top tracks and Last.fm."""
     return await create_spotify_discovery_playlist(top_n, playlist_name, public)
+
+
+@mcp.tool(name="sendTelegramBotMessage")
+async def send_telegram_bot_message_tool(
+    text: str = "",
+    media: list[TelegramMedia] | None = None,
+    chat_id: str | None = None,
+    parse_mode: str | None = None,
+) -> str:
+    """Send a Telegram message from the configured bot: text plus up to 10 media.
+
+    text is up to 4096 characters; with media it becomes the caption when it fits
+    in 1024 characters, otherwise it is sent as a separate message first. media
+    is an ordered list of {"type": "photo"|"video"|"animation"|"audio"|"document",
+    "url": "https://..."}; Telegram downloads each public URL itself. Photos and
+    videos are grouped into one album, audio and documents into albums of their
+    own kind. chat_id defaults to TELEGRAM_BOT_DEFAULT_CHAT_ID. parse_mode may be
+    "HTML" or "MarkdownV2".
+    """
+    return await send_telegram_bot_message(text, media, chat_id, parse_mode)
 
 
 def main() -> None:
