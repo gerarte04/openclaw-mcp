@@ -1,0 +1,8 @@
+# Copy to group_vars/all/vault.yml and encrypt:
+#   ansible-vault encrypt group_vars/all/vault.yml
+vault_telegram_api_id: "123456"
+vault_telegram_api_hash: replace_with_api_hash
+vault_spotify_client_id: replace_with_spotify_client_id
+vault_lastfm_api_key: replace_with_lastfm_api_key
+vault_telegram_bot_token: replace_with_bot_token_from_botfather
+vault_telegram_bot_default_chat_id: ""

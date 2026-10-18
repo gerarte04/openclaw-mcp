@@ -33,9 +33,14 @@ Streamable HTTP MCP server:
    docker compose up -d --build
    ```
 
-The REST endpoint is internal to Docker Compose. `mcp-server` is a persistent
-Streamable HTTP server. Its port is bound to `127.0.0.1` only, so it is
-reachable by OpenClaw on the same host but not exposed publicly.
+`mcp-server` is a persistent Streamable HTTP server. By default the REST
+service (port 8000) and the MCP server (port 8001) are published on
+`127.0.0.1` only, so they are reachable on the same host but not exposed
+publicly. `REST_BIND_ADDRESS`, `REST_PORT`, `MCP_BIND_ADDRESS`, and `MCP_PORT`
+in `.env` change this; `0.0.0.0` listens on every network interface.
+
+To deploy on a server with Ansible, where both services listen on the whole
+network by default, see [deploy/ansible/README.md](deploy/ansible/README.md).
 
 ## OpenClaw MCP configuration
 

@@ -1,0 +1,120 @@
+- name: Deploy the OpenClaw MCP server and its REST service
+  hosts: openclaw_mcp
+  become: true
+
+  vars:
+    project_root: "{{ playbook_dir }}/../.."
+    project_sources:
+      - Dockerfile
+      - .dockerignore
+      - docker-compose.yml
+      - pyproject.toml
+      - app
+      - rest_service
+      - mcp_server
+      - scripts
+    docker_apt_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_facts['architecture']] | default(ansible_facts['architecture']) }}"
+
+  tasks:
+    - name: Install Docker
+      when: install_docker | bool
+      block:
+        - name: Install apt prerequisites
+          ansible.builtin.apt:
+            name: [ca-certificates, python3-debian]
+            update_cache: true
+
+        - name: Add Docker's apt repository
+          ansible.builtin.deb822_repository:
+            name: docker
+            types: deb
+            uris: "https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}"
+            suites: "{{ ansible_facts['distribution_release'] }}"
+            components: stable
+            architectures: "{{ docker_apt_arch }}"
+            signed_by: "https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}/gpg"
+
+        - name: Install Docker Engine and the Compose plugin
+          ansible.builtin.apt:
+            name:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+              - docker-buildx-plugin
+              - docker-compose-plugin
+            update_cache: true
+
+        - name: Start Docker
+          ansible.builtin.service:
+            name: docker
+            state: started
+            enabled: true
+
+    - name: Create the application directories
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: "{{ app_dir }}", mode: "0755" }
+        - { path: "{{ app_dir }}/data", mode: "0700" }
+        - { path: "{{ app_dir }}/data/spotify", mode: "0700" }
+
+    - name: Copy the project sources
+      ansible.builtin.copy:
+        src: "{{ project_root }}/{{ item }}"
+        dest: "{{ app_dir }}/"
+        mode: preserve
+      loop: "{{ project_sources }}"
+
+    - name: Render .env
+      ansible.builtin.template:
+        src: env.j2
+        dest: "{{ app_dir }}/.env"
+        mode: "0600"
+
+    - name: Upload the Telegram session
+      ansible.builtin.copy:
+        src: "{{ telegram_session_local_path }}"
+        dest: "{{ app_dir }}/data/telegram.session"
+        mode: "0600"
+        force: "{{ overwrite_auth_files | bool }}"
+      when: telegram_session_local_path | length > 0
+
+    - name: Upload the Spotify refresh token
+      ansible.builtin.copy:
+        src: "{{ spotify_token_local_path }}"
+        dest: "{{ app_dir }}/data/spotify/refresh-token.json"
+        mode: "0600"
+        force: "{{ overwrite_auth_files | bool }}"
+      when: spotify_token_local_path | length > 0
+
+    - name: Build and start the services
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        project_name: "{{ compose_project_name }}"
+        build: always
+        remove_orphans: true
+        wait: true
+        wait_timeout: 180
+        state: present
+
+    - name: Check the REST service
+      ansible.builtin.uri:
+        url: "http://{{ '127.0.0.1' if rest_bind_address == '0.0.0.0' else rest_bind_address }}:{{ rest_port }}/healthz"
+      register: rest_health
+      retries: 10
+      delay: 3
+      until: rest_health.status == 200
+
+    - name: Check the MCP server port
+      ansible.builtin.wait_for:
+        host: "{{ '127.0.0.1' if mcp_bind_address == '0.0.0.0' else mcp_bind_address }}"
+        port: "{{ mcp_port }}"
+        timeout: 60
+
+    - name: Show the endpoints
+      ansible.builtin.debug:
+        msg:
+          - "REST: http://{{ ansible_host | default(inventory_hostname) }}:{{ rest_port }}"
+          - "MCP:  http://{{ ansible_host | default(inventory_hostname) }}:{{ mcp_port }}/mcp"
